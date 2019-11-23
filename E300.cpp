@@ -9,6 +9,10 @@ E300::E300(QWidget *parent)
 {
 	ui.setupUi(this);
 	LoadAPI();
+	E300time = new QTimer;
+	E300time->stop();
+	E300time->setInterval(50);
+	connect(E300time, SIGNAL(timeout()), this, SLOT(on_timer_timeout()));
 }
 
 void E300::LoadAPI()
@@ -158,104 +162,124 @@ void E300::Display(QString msg)
 
 void E300::on_refresh_clicked()
 {
-	HLINHW* pHWbuf = NULL;
-	int HWCount;
-	TLINError errcode;
-	pHWbuf = (HLINHW*)malloc(1 * sizeof(HLINHW));
-	GetAvailableHardware(pHWbuf, 0, &HWCount);
-	if (HWCount == 0)
-		HWCount = 16;
-	pHWbuf = (HLINHW*)realloc(pHWbuf, HWCount * sizeof(HLINHW));
-	if (pHWbuf == NULL)
+	HLINHW* lwHwHandles;
+	WORD lwBuffSize;
+	QString str;
+	int lwCount, lnHwType, lnDevNo, lnChannel, i;
+	TLINError lLINErr;
+	lwHwHandles = nullptr;
+	HLINHW lwHw;
+	lwCount = 0;
+	lLINErr = GetAvailableHardware(lwHwHandles, 0, &lwCount);
+	if (lwCount == 0)
 	{
-		pHWbuf = (HLINHW*)malloc(HWCount * sizeof(HLINHW));
+		lwCount = 16;
 	}
-	errcode = GetAvailableHardware(pHWbuf, HWCount * sizeof(HLINHW), &HWCount);
-	if (errcode != errOK)
-	{
-		Display(u8"未找到硬件");
-		return;
-	}
-	if (HWCount == 0)
+	lwHwHandles = new HLINHW[lwCount];
+	Hwtemp = new HLINHW[lwCount];
+	lwBuffSize = (WORD)(lwCount * sizeof(HLINHW));
+	lLINErr = GetAvailableHardware(lwHwHandles, lwBuffSize, &lwCount);
+	if (lLINErr == errOK)
 	{
 		ui.selectHW->clear();
-		ui.selectHW->addItem(u8"未找到硬件");
-		Display(u8"未找到硬件");
+		if (lwCount == 0)
+		{
+			ui.selectHW->addItem(u8"没有找到硬件");
+			return;
+		}
+		else
+		{
+			for (i = 0; i < lwCount; i++)
+			{
+				// Get the handle of the hardware.
+				lwHw = lwHwHandles[i];
+				// Read the type of the hardware with the handle lwHw.
+				GetHardwareParam(lwHw, hwpType, &lnHwType, 0);
+				// Read the device number of the hardware with the handle lwHw.
+				GetHardwareParam(lwHw, hwpDeviceNumber, &lnDevNo, 0);
+				// Read the channel number of the hardware with the handle lwHw.
+				GetHardwareParam(lwHw, hwpChannelNumber, &lnChannel, 0);
+				switch (lnHwType)
+				{
+				case LIN_HW_TYPE_USB_PRO:
+					str.append("PCAN-USB Pro");
+					break;
+				case LIN_HW_TYPE_USB_PRO_FD:
+					// Show as unknown hardware
+					str.append("PCAN-USB Pro FD");
+					break;
+				case LIN_HW_TYPE_PLIN_USB:
+					// Show as unknown hardware
+					str.append("PLIN-USB");
+					break;
+				default:
+					// Show as unknown hardware
+					str.append("Unknown");
+					break;
+				}
+				str.append(" - dev.");
+				str.append(QString::number(lnDevNo));
+				str.append(", chan.");
+				str.append(QString::number(lnChannel));
+				ui.selectHW->addItem(str);
+				str.clear();
+				Hwtemp[i] = lwHw;
+			}
+		}
 	}
 	else
 	{
-		//void* pBufHWtype = malloc(50);
-		int HWType, DevNum, Channel;
-		AvailableHW = (AVAILABLE_HW*)malloc(HWCount * sizeof(AVAILABLE_HW));
-		ui.selectHW->clear();
-		for (int HWnum = 0; HWnum < HWCount; HWnum++)
-		{
-			HLINHW HWtemp;
-			QString devstr;
-			HWtemp = pHWbuf[HWnum];
-
-			GetHardwareParam(HWtemp, hwpType, &HWType, sizeof(int));
-			GetHardwareParam(HWtemp, hwpDeviceNumber, &DevNum, sizeof(int));
-			GetHardwareParam(HWtemp, hwpChannelNumber, &Channel, sizeof(int));
-
-			switch (HWType)
-			{
-			case LIN_HW_TYPE_USB_PRO:
-				devstr.append("PCAN-USB Pro");
-				break;
-			case LIN_HW_TYPE_USB_PRO_FD:
-				devstr.append("PCAN-USB Pro FD");
-				break;
-			case LIN_HW_TYPE_PLIN_USB:
-				devstr.append("PLIN-USB");
-				break;
-			default:
-				devstr.append("Unknown");
-				break;
-			}
-			devstr.append(" - dev.");
-			devstr.append(QString::number(DevNum));
-			devstr.append(", chan.");
-			devstr.append(QString::number(Channel));
-			ui.selectHW->addItem(devstr);
-			AvailableHW[HWnum].hLINHW = HWtemp;
-		}
+		Display(u8"加载失败");
+		return;
 	}
+	delete lwHwHandles;
 }
 
 void E300::on_connect_clicked()
 {
-
-	HLINHW HWtemp;
-	DWORD result;
-	unsigned long long filter;
-	if (AvailableHW == NULL)
+	unsigned long long filter = 0xFFFFFFFFFFFFFFFF;
+	HLINHW HW;
+	QString str;
+	if (ui.selectHW->currentText() == u8"没有找到硬件" || ui.selectHW->currentText().isEmpty())
 	{
-		Display(u8"没有硬件");
+		Display(u8"请选择硬件");
 		return;
 	}
-	RegisterClient("PLIN", NULL, &m_hClient);
-	if (ui.selectHW->currentIndex() >= 0)
-		HWtemp = AvailableHW[ui.selectHW->currentIndex()].hLINHW;
 	else
 	{
-		Display(u8"没有硬件");
-		return;
+		HW = Hwtemp[ui.selectHW->currentIndex()];
+		m_LastLINErr = RegisterClient("pin", NULL, &m_hClient);
+		if (m_LastLINErr == errOK)
+		{
+			Display(u8"注册成功");
+		}
+		else
+		{
+			Display(u8"注册失败");
+			return;
+		}
+		m_LastLINErr = ConnectClient(m_hClient, HW);
+		if (m_LastLINErr == errOK)
+		{
+			m_hHw = HW;
+			m_LastLINErr = InitializeHardware(m_hClient, m_hHw, modMaster, ui.selectbaud->currentText().toInt());
+			SetClientFilter(m_hClient, m_hHw, filter);
+			GetClientFilter(m_hClient, m_hHw, &filter);
+		}
+		else
+		{
+			Display(u8"连接失败");
+			str = QString::number(m_LastLINErr);
+			Display(u8"错误代码： " + str);
+			return;
+		}
 	}
-	result = ConnectClient(m_hClient, HWtemp);
-
-	if (result != errOK)
-	{
-		Display(u8"连接失败");
-		return;
-	}
-	m_hHW = HWtemp;
-	InitializeHardware(m_hClient, HWtemp, modMaster, ui.selectbaud->currentText().toInt());
-	filter = 0xFFFFFFFFFFFFFFFF;//
-	SetClientFilter(m_hClient, m_hHW, filter);
-	GetClientFilter(m_hClient, m_hHW, &filter);
-	ui.connect->setEnabled(FALSE);
 	ui.stop->setEnabled(TRUE);
+	ui.connect->setEnabled(FALSE);
+	ui.selectHW->setEnabled(FALSE);
+	ui.selectbaud->setEnabled(FALSE);
+	ui.refresh->setEnabled(FALSE);
+	connectflag = 1;
 	Display(u8"连接成功");
 }
 
@@ -292,7 +316,7 @@ void E300::Write(BYTE id, BYTE dir, BYTE* buf)
 	TLINMsg msg;
 	if (!connectflag)
 	{
-		Display("请连接硬件");
+		Display(u8"请连接硬件");
 		return;
 	}
 	msg.FrameId = CalculatePID(id);
@@ -312,7 +336,7 @@ void E300::Write3C(BYTE* buf)
 	TLINMsg msg;
 	if (!connectflag)
 	{
-		Display("请连接硬件");
+		Display(u8"请连接硬件");
 		return;
 	}
 	msg.FrameId = 0x3c;
@@ -332,7 +356,7 @@ void E300::Write3DHead()
 	TLINMsg msg;
 	if (!connectflag)
 	{
-		Display("请连接硬件");
+		Display(u8"请连接硬件");
 		return;
 	}
 	msg.FrameId = 0x7D;
@@ -452,7 +476,7 @@ void E300::ReadMsg(BYTE* buf)
 		}
 		temp.append("\n");
 		Display(temp);
-		temp.clear();
+		//temp.clear();
 	}
 }
 
@@ -466,6 +490,148 @@ BYTE E300::CalculatePID(BYTE ID)
 
 	return ID;
 }
+
+void E300::on_E300_start_clicked()
+{
+	if (!connectflag)
+	{
+		Display(u8"请连接硬件");
+		return;
+	}
+	ui.E300_start->setEnabled(FALSE);
+	ui.E300_stop->setEnabled(TRUE);
+
+
+	ui.Menu_short->setStyleSheet(off_led);
+	ui.Menu_long->setStyleSheet(off_led);
+
+	ui.Mode_short->setStyleSheet(off_led);
+	ui.Mode_long->setStyleSheet(off_led);
+
+	ui.ADAS_short->setStyleSheet(off_led);
+	ui.ADAS_long->setStyleSheet(off_led);
+
+	ui.Answer_short->setStyleSheet(off_led);
+	ui.Answer_long->setStyleSheet(off_led);
+
+	ui.Speech_short->setStyleSheet(off_led);
+	ui.Speech_long->setStyleSheet(off_led);
+
+	ui.DIST_short->setStyleSheet(off_led);
+	ui.DIST_long->setStyleSheet(off_led);
+
+	ui.RESPlus_short->setStyleSheet(off_led);
+	ui.RESPlus_long->setStyleSheet(off_led);
+
+	ui.Crusie_short->setStyleSheet(off_led);
+	ui.Crusie_long->setStyleSheet(off_led);
+
+	ui.SETReduce_short->setStyleSheet(off_led);
+	ui.SETReduce_long->setStyleSheet(off_led);
+
+	ui.Return_short->setStyleSheet(off_led);
+	ui.Return_long->setStyleSheet(off_led);
+
+	ui.Up_short->setStyleSheet(off_led);
+	ui.Up_long->setStyleSheet(off_led);
+
+	ui.Down_short->setStyleSheet(off_led);
+	ui.Down_long->setStyleSheet(off_led);
+
+	ui.SeekReduce_short->setStyleSheet(off_led);
+	ui.SeekReduce_long->setStyleSheet(off_led);
+
+	ui.OK_short->setStyleSheet(off_led);
+	ui.OK_long->setStyleSheet(off_led);
+
+	ui.SeekPlus_short->setStyleSheet(off_led);
+	ui.SeekPlus_long->setStyleSheet(off_led);
+
+	ui.VolPlus_short->setStyleSheet(off_led);
+	ui.VolPlus_long->setStyleSheet(off_led);
+
+	ui.Mute_short->setStyleSheet(off_led);
+	ui.Mute_long->setStyleSheet(off_led);
+
+	ui.VolReduce_short->setStyleSheet(off_led);
+	ui.VolReduce_long->setStyleSheet(off_led);
+
+	ui.DiagInfoSW_short->setStyleSheet(off_led);
+	ui.DiagInfoSW_long->setStyleSheet(off_led);
+	E300time->start();
+
+}
+
+void E300::on_E300_stop_clicked()
+{
+	ui.E300_start->setEnabled(TRUE);
+	ui.E300_stop->setEnabled(FALSE);
+	E300time->stop();
+}
+
+void E300::on_timer_timeout()
+{
+	uint8_t buf[8] = {0};
+	WriteHead(0x19, Subscriber);
+	Sleep(10);
+	ReadMsg(buf);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 FARPROC E300::GetFunction(char* szName)
 {

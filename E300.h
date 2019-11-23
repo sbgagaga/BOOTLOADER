@@ -86,13 +86,7 @@ public:
 	void ReadMsg(BYTE*);
 	BYTE CalculatePID(BYTE ID);
 	void WriteHead(BYTE id, BYTE dir);
-	void ProS19File();
-	void testplay(unsigned char*);
-	void update();
-	void table_chang();
-	void table_close();
 	void Write3C(BYTE* buf);
-	void Read3D();
 	void Write3DHead();
 
 private:
@@ -164,7 +158,7 @@ private:
 	BYTE LoadDllHandle();
 	// Gets the address of a given function name in a loaded DLL
 	FARPROC GetFunction(LPSTR szName);
-	bool connectflag;
+	bool connectflag=0;
 	QList<QString> senddate, sendaddr;
 
 	QTimer* E300time;
@@ -1113,4 +1107,7 @@ private slots:
 	void on_connect_clicked();
 	void on_stop_clicked();
 	void on_send_clicked();
+	void on_E300_start_clicked();
+	void on_E300_stop_clicked();
+	void on_timer_timeout();
 };
