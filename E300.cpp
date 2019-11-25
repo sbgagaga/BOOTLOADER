@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "E300.h"
 #include "stdio.h"
-#include "string.h"
 
 
 E300::E300(QWidget *parent)
@@ -476,7 +475,6 @@ void E300::ReadMsg(BYTE* buf)
 		}
 		temp.append("\n");
 		Display(temp);
-		//temp.clear();
 	}
 }
 
@@ -558,6 +556,7 @@ void E300::on_E300_start_clicked()
 
 	ui.DiagInfoSW_short->setStyleSheet(off_led);
 	ui.DiagInfoSW_long->setStyleSheet(off_led);
+	DIDdiagnose();
 	E300time->start();
 
 }
@@ -569,15 +568,267 @@ void E300::on_E300_stop_clicked()
 	E300time->stop();
 }
 
+void E300::DIDdiagnose()
+{
+	UINT8 buf[8] = {0},len=10;
+	QString str="";
+	ui.DIDHW->clear();
+	ui.DIDSW->clear();
+	if (!connectflag)
+	{
+		Display("ÇëÁ¬½ÓÓ²¼þ");
+		return;
+	}
+	buf[0] = 0x21;
+	buf[1] = 0x03;
+	buf[2] = 0x22;
+	buf[3] = 0xFF;
+	buf[4] = 0x00;
+	Write3C(buf);
+	Sleep(10);
+	ReadMsg();
+	Sleep(30);
+	Write3DHead();
+	Sleep(10);
+	ReadMsg(buf);
+	for (int i = 0; i < 2; i++)
+	{
+		str.append(buf[6 + i]);
+	}
+	len -= 2;
+	while (buf[0] == 0x21)
+	{
+		Write3DHead();
+		Sleep(10);
+		buf[0] = 0;
+		ReadMsg(buf);
+		for (int i = 0; i < 6; i++)
+		{
+			str.append(buf[2 + i]);
+			len--;
+			if (len == 0)
+			{
+				break;
+			}
+		}
+		if (len == 0)
+		{
+			break;
+		}
+	}
+	ui.DIDSW->setText(str);
+
+	str.clear();
+	len = 10;
+
+	buf[0] = 0x21;
+	buf[1] = 0x03;
+	buf[2] = 0x22;
+	buf[3] = 0xFF;
+	buf[4] = 0x01;
+	Write3C(buf);
+	Sleep(10);
+	ReadMsg();
+	Sleep(30);
+	Write3DHead();
+	Sleep(10);
+	ReadMsg(buf);
+	for (int i = 0; i < 2; i++)
+	{
+		str.append(buf[6 + i]);
+	}
+	len -= 2;
+	while (buf[0] == 0x21)
+	{
+		Write3DHead();
+		Sleep(10);
+		buf[0] = 0;
+		ReadMsg(buf);
+		for (int i = 0; i < 6; i++)
+		{
+			str.append(buf[2 + i]);
+			len--;
+			if (len == 0)
+			{
+				break;
+			}
+		}
+		if (len == 0)
+		{
+			break;
+		}
+	}
+	ui.DIDHW->setText(str);
+
+}
+
 void E300::on_timer_timeout()
 {
+	UINT8 Menu, Mode, ADAS, Answer, Speech, DIST, RESPlus, Crusie, SETReduce, Return, \
+		Up, Down, SeekReduce, OK, SeekPlus, VolPlus, Mute, VolReduce, DiagInfoSW;
 	uint8_t buf[8] = {0};
 	WriteHead(0x19, Subscriber);
 	Sleep(10);
 	ReadMsg(buf);
+	Return = buf[0] & 0x03;
+	Menu = (buf[0] & 0x0c) >> 4;
+	Up = (buf[0] & 0x30) >> 8;
+	Down = (buf[0] & 0xC0) >> 12;
+
+	OK = buf[1] & 0x03;
+	Speech = (buf[1] & 0x0c) >> 4;
+	Mode = (buf[1] & 0x30) >> 8;
+
+	VolPlus = (buf[2] & 0x0c) >> 4;
+	VolReduce = (buf[2] & 0x30) >> 8;
+	Mute = (buf[2] & 0xC0) >> 12;
+
+	SeekPlus = buf[3] & 0x03;
+	SeekReduce = (buf[3] & 0x0c) >> 4;
+	Crusie = (buf[3] & 0x30) >> 8;
+
+	RESPlus = buf[4] & 0x03;
+	SETReduce = (buf[4] & 0x0c) >> 4;
+	DIST = (buf[4] & 0x30) >> 8;
+
+	ADAS = (buf[6] & 0x0c) >> 4;
+
+	DiagInfoSW = buf[7] & 0x07;
+	Answer= (buf[7] & 0x18) >> 3;
+
+	switch (Menu)
+	{
+	case 0:ui.Menu_short->setStyleSheet(off_led); ui.Menu_long->setStyleSheet(off_led);break;
+	case 1:ui.Menu_short->setStyleSheet(off_led); ui.Menu_long->setStyleSheet(on_led); break;
+	case 2:ui.Menu_short->setStyleSheet(on_led); ui.Menu_long->setStyleSheet(off_led); break;
+	}
+
+	switch (Mode)
+	{
+	case 0:ui.Mode_short->setStyleSheet(off_led); ui.Mode_long->setStyleSheet(off_led); break;
+	case 1:ui.Mode_short->setStyleSheet(off_led); ui.Mode_long->setStyleSheet(on_led); break;
+	case 2:ui.Mode_short->setStyleSheet(on_led); ui.Mode_long->setStyleSheet(off_led); break;
+	}
+
+	switch (ADAS)
+	{
+	case 0:ui.ADAS_short->setStyleSheet(off_led); ui.ADAS_long->setStyleSheet(off_led); break;
+	case 1:ui.ADAS_short->setStyleSheet(off_led); ui.ADAS_long->setStyleSheet(on_led); break;
+	case 2:ui.ADAS_short->setStyleSheet(on_led); ui.ADAS_long->setStyleSheet(off_led); break;
+	}
+
+	switch (Answer)
+	{
+	case 0:ui.Answer_short->setStyleSheet(off_led); ui.Answer_long->setStyleSheet(off_led); break;
+	case 1:ui.Answer_short->setStyleSheet(off_led); ui.Answer_long->setStyleSheet(on_led); break;
+	case 2:ui.Answer_short->setStyleSheet(on_led); ui.Answer_long->setStyleSheet(off_led); break;
+	}
+
+	switch (Speech)
+	{
+	case 0:ui.Speech_short->setStyleSheet(off_led); ui.Speech_long->setStyleSheet(off_led); break;
+	case 1:ui.Speech_short->setStyleSheet(off_led); ui.Speech_long->setStyleSheet(on_led); break;
+	case 2:ui.Speech_short->setStyleSheet(on_led); ui.Speech_long->setStyleSheet(off_led); break;
+	}
+
+	switch (DIST)
+	{
+	case 0:ui.DIST_short->setStyleSheet(off_led); ui.DIST_long->setStyleSheet(off_led); break;
+	case 1:ui.DIST_short->setStyleSheet(off_led); ui.DIST_long->setStyleSheet(on_led); break;
+	case 2:ui.DIST_short->setStyleSheet(on_led); ui.DIST_long->setStyleSheet(off_led); break;
+	}
+
+	switch (RESPlus)
+	{
+	case 0:ui.RESPlus_short->setStyleSheet(off_led); ui.RESPlus_long->setStyleSheet(off_led); break;
+	case 1:ui.RESPlus_short->setStyleSheet(off_led); ui.RESPlus_long->setStyleSheet(on_led); break;
+	case 2:ui.RESPlus_short->setStyleSheet(on_led); ui.RESPlus_long->setStyleSheet(off_led); break;
+	}
+
+	switch (Crusie)
+	{
+	case 0:ui.Crusie_short->setStyleSheet(off_led); ui.Crusie_long->setStyleSheet(off_led); break;
+	case 1:ui.Crusie_short->setStyleSheet(off_led); ui.Crusie_long->setStyleSheet(on_led); break;
+	case 2:ui.Crusie_short->setStyleSheet(on_led); ui.Crusie_long->setStyleSheet(off_led); break;
+	}
+
+	switch (SETReduce)
+	{
+	case 0:ui.SETReduce_short->setStyleSheet(off_led); ui.SETReduce_long->setStyleSheet(off_led); break;
+	case 1:ui.SETReduce_short->setStyleSheet(off_led); ui.SETReduce_long->setStyleSheet(on_led); break;
+	case 2:ui.SETReduce_short->setStyleSheet(on_led); ui.SETReduce_long->setStyleSheet(off_led); break;
+	}
+
+	switch (Return)
+	{
+	case 0:ui.Return_short->setStyleSheet(off_led); ui.Return_long->setStyleSheet(off_led); break;
+	case 1:ui.Return_short->setStyleSheet(off_led); ui.Return_long->setStyleSheet(on_led); break;
+	case 2:ui.Return_short->setStyleSheet(on_led); ui.Return_long->setStyleSheet(off_led); break;
+	}
+
+	switch (Up)
+	{
+	case 0:ui.Up_short->setStyleSheet(off_led); ui.Up_long->setStyleSheet(off_led); break;
+	case 1:ui.Up_short->setStyleSheet(off_led); ui.Up_long->setStyleSheet(on_led); break;
+	case 2:ui.Up_short->setStyleSheet(on_led); ui.Up_long->setStyleSheet(off_led); break;
+	}
+
+	switch (Down)
+	{
+	case 0:ui.Down_short->setStyleSheet(off_led); ui.Up_long->setStyleSheet(off_led); break;
+	case 1:ui.Down_short->setStyleSheet(off_led); ui.Up_long->setStyleSheet(on_led); break;
+	case 2:ui.Up_short->setStyleSheet(on_led); ui.Up_long->setStyleSheet(off_led); break;
+	}
+
+	switch (SeekReduce)
+	{
+	case 0:ui.SeekReduce_short->setStyleSheet(off_led); ui.SeekReduce_long->setStyleSheet(off_led); break;
+	case 1:ui.SeekReduce_short->setStyleSheet(off_led); ui.SeekReduce_long->setStyleSheet(on_led); break;
+	case 2:ui.SeekReduce_short->setStyleSheet(on_led); ui.SeekReduce_long->setStyleSheet(off_led); break;
+	}
+
+	switch (OK)
+	{
+	case 0:ui.OK_short->setStyleSheet(off_led); ui.OK_long->setStyleSheet(off_led); break;
+	case 1:ui.OK_short->setStyleSheet(off_led); ui.OK_long->setStyleSheet(on_led); break;
+	case 2:ui.OK_short->setStyleSheet(on_led); ui.OK_long->setStyleSheet(off_led); break;
+	}
+
+	switch (SeekPlus)
+	{
+	case 0:ui.SeekPlus_short->setStyleSheet(off_led); ui.SeekPlus_long->setStyleSheet(off_led); break;
+	case 1:ui.SeekPlus_short->setStyleSheet(off_led); ui.SeekPlus_long->setStyleSheet(on_led); break;
+	case 2:ui.SeekPlus_short->setStyleSheet(on_led); ui.SeekPlus_long->setStyleSheet(off_led); break;
+	}
+
+	switch (VolPlus)
+	{
+	case 0:ui.VolPlus_short->setStyleSheet(off_led); ui.VolPlus_long->setStyleSheet(off_led); break;
+	case 1:ui.VolPlus_short->setStyleSheet(off_led); ui.VolPlus_long->setStyleSheet(on_led); break;
+	case 2:ui.VolPlus_short->setStyleSheet(on_led); ui.VolPlus_long->setStyleSheet(off_led); break;
+	}
+
+	switch (Mute)
+	{
+	case 0:ui.Mute_short->setStyleSheet(off_led); ui.Mute_long->setStyleSheet(off_led); break;
+	case 1:ui.Mute_short->setStyleSheet(off_led); ui.Mute_long->setStyleSheet(on_led); break;
+	case 2:ui.Mute_short->setStyleSheet(on_led); ui.Mute_long->setStyleSheet(off_led); break;
+	}
+
+	switch (VolReduce)
+	{
+	case 0:ui.VolReduce_short->setStyleSheet(off_led); ui.VolReduce_long->setStyleSheet(off_led); break;
+	case 1:ui.VolReduce_short->setStyleSheet(off_led); ui.VolReduce_long->setStyleSheet(on_led); break;
+	case 2:ui.VolReduce_short->setStyleSheet(on_led); ui.VolReduce_long->setStyleSheet(off_led); break;
+	}
+
+	switch (DiagInfoSW)
+	{
+	case 0:ui.DiagInfoSW_short->setStyleSheet(off_led); ui.DiagInfoSW_long->setStyleSheet(off_led); break;
+	case 2:ui.DiagInfoSW_short->setStyleSheet(off_led); ui.DiagInfoSW_long->setStyleSheet(on_led); break;
+	case 3:ui.DiagInfoSW_short->setStyleSheet(on_led); ui.DiagInfoSW_long->setStyleSheet(off_led); break;
+	}
 }
-
-
 
 
 

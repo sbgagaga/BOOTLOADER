@@ -9,6 +9,7 @@
 #include <QFile.h>
 #include <QList.h>
 #include <QTimer.h>
+#include "string.h"
 
 
 typedef TLINError(__stdcall* fpOneParamCli) (HLINCLIENT);
@@ -88,6 +89,7 @@ public:
 	void WriteHead(BYTE id, BYTE dir);
 	void Write3C(BYTE* buf);
 	void Write3DHead();
+	void DIDdiagnose();
 
 private:
 	Ui::MainWindow ui;
@@ -166,6 +168,7 @@ private:
             max-height: 24px;border-radius: 12px;  border:1px solid black;background:grey";
 	const QString on_led = "min-width: 24px; min-height: 24px;max-width:24px; \
             max-height: 24px;border-radius: 12px;  border:1px solid black;background:red";
+	
 
 public:
 	/// <summary>
