@@ -584,6 +584,7 @@ void E300::DIDdiagnose()
 	buf[2] = 0x22;
 	buf[3] = 0xFF;
 	buf[4] = 0x00;
+	Sleep(10);
 	Write3C(buf);
 	Sleep(10);
 	ReadMsg();
@@ -671,27 +672,27 @@ void E300::on_timer_timeout()
 	Sleep(10);
 	ReadMsg(buf);
 	Return = buf[0] & 0x03;
-	Menu = (buf[0] & 0x0c) >> 4;
-	Up = (buf[0] & 0x30) >> 8;
-	Down = (buf[0] & 0xC0) >> 12;
+	Menu = (buf[0] & 0x0c) >> 2;
+	Up = (buf[0] & 0x30) >> 4;
+	Down = (buf[0] & 0xC0) >> 6;
 
 	OK = buf[1] & 0x03;
-	Speech = (buf[1] & 0x0c) >> 4;
-	Mode = (buf[1] & 0x30) >> 8;
+	Speech = (buf[1] & 0x0c) >> 2;
+	Mode = (buf[1] & 0x30) >> 4;
 
-	VolPlus = (buf[2] & 0x0c) >> 4;
-	VolReduce = (buf[2] & 0x30) >> 8;
-	Mute = (buf[2] & 0xC0) >> 12;
+	VolPlus = (buf[2] & 0x0c) >> 2;
+	VolReduce = (buf[2] & 0x30) >> 4;
+	Mute = (buf[2] & 0xC0) >> 6;
 
 	SeekPlus = buf[3] & 0x03;
-	SeekReduce = (buf[3] & 0x0c) >> 4;
-	Crusie = (buf[3] & 0x30) >> 8;
+	SeekReduce = (buf[3] & 0x0c) >> 2;
+	Crusie = (buf[3] & 0x30) >> 4;
 
 	RESPlus = buf[4] & 0x03;
-	SETReduce = (buf[4] & 0x0c) >> 4;
-	DIST = (buf[4] & 0x30) >> 8;
+	SETReduce = (buf[4] & 0x0c) >> 2;
+	DIST = (buf[4] & 0x30) >> 4;
 
-	ADAS = (buf[6] & 0x0c) >> 4;
+	ADAS = (buf[6] & 0x0c) >> 2;
 
 	DiagInfoSW = buf[7] & 0x07;
 	Answer= (buf[7] & 0x18) >> 3;
@@ -775,9 +776,9 @@ void E300::on_timer_timeout()
 
 	switch (Down)
 	{
-	case 0:ui.Down_short->setStyleSheet(off_led); ui.Up_long->setStyleSheet(off_led); break;
-	case 1:ui.Down_short->setStyleSheet(off_led); ui.Up_long->setStyleSheet(on_led); break;
-	case 2:ui.Up_short->setStyleSheet(on_led); ui.Up_long->setStyleSheet(off_led); break;
+	case 0:ui.Down_short->setStyleSheet(off_led); ui.Down_long->setStyleSheet(off_led); break;
+	case 1:ui.Down_short->setStyleSheet(off_led); ui.Down_long->setStyleSheet(on_led); break;
+	case 2:ui.Down_short->setStyleSheet(on_led); ui.Down_long->setStyleSheet(off_led); break;
 	}
 
 	switch (SeekReduce)
