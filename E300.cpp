@@ -310,7 +310,7 @@ void E300::on_clear_clicked()
 	ui.textBrowser->clear();
 }
 
-void E300::Write(BYTE id, BYTE dir, BYTE* buf)
+void E300::Write(BYTE id, BYTE* buf)
 {
 	TLINMsg msg;
 	if (!connectflag)
@@ -319,7 +319,7 @@ void E300::Write(BYTE id, BYTE dir, BYTE* buf)
 		return;
 	}
 	msg.FrameId = CalculatePID(id);
-	msg.Direction = dir;
+	msg.Direction = Publisher;
 	msg.ChecksumType = cstEnhanced;
 	msg.Length = 8;
 	for (int i = 0; i < 8; i++)
@@ -416,11 +416,11 @@ void E300::ReadMsg()
 	}
 }
 
-void E300::WriteHead(BYTE id, BYTE dir)
+void E300::WriteHead(BYTE id)
 {
 	TLINMsg msg;
 	msg.FrameId = CalculatePID(id);
-	msg.Direction = dir;
+	msg.Direction = Subscriber;
 	msg.ChecksumType = cstEnhanced;
 	msg.Length = 8;
 	for (int i = 0; i < 8; i++)
@@ -589,9 +589,12 @@ void E300::DIDdiagnose()
 	Sleep(10);
 	ReadMsg();
 	Sleep(30);
-	Write3DHead();
-	Sleep(10);
-	ReadMsg(buf);
+	do 
+	{
+		Write3DHead();
+		Sleep(10);
+		ReadMsg(buf);
+	} while (buf[0] != 0x21);
 	for (int i = 0; i < 2; i++)
 	{
 		str.append(buf[6 + i]);
@@ -668,7 +671,7 @@ void E300::on_timer_timeout()
 	UINT8 Menu, Mode, ADAS, Answer, Speech, DIST, RESPlus, Crusie, SETReduce, Return, \
 		Up, Down, SeekReduce, OK, SeekPlus, VolPlus, Mute, VolReduce, DiagInfoSW;
 	uint8_t buf[8] = {0};
-	WriteHead(0x19, Subscriber);
+	WriteHead(0x19);
 	Sleep(10);
 	ReadMsg(buf);
 	Return = buf[0] & 0x03;

@@ -82,11 +82,11 @@ public:
 	E300(QWidget *parent = Q_NULLPTR);
 	~E300();
 	void Display(QString msg);
-	void Write(BYTE id, BYTE dir, BYTE* buf);
+	void Write(BYTE id, BYTE* buf);
 	void ReadMsg();
 	void ReadMsg(BYTE*);
 	BYTE CalculatePID(BYTE ID);
-	void WriteHead(BYTE id, BYTE dir);
+	void WriteHead(BYTE id);
 	void Write3C(BYTE* buf);
 	void Write3DHead();
 	void DIDdiagnose();
