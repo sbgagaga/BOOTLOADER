@@ -834,10 +834,346 @@ void E300::on_timer_timeout()
 	}
 }
 
+void E300::on_choosefile_clicked()
+{
+	QString filename;
+	filename = QFileDialog::getOpenFileName(this, QString("选择烧写文件"), QString("/"), tr("file(*.s19)"));
+	ui.fileline->clear();
+	ui.fileline->setText(filename);
+	if (filename.isEmpty())
+	{
+		Display(u8"请选择.s19文件");
+		return;
+	}
+	ProHexFile();
+	testplay(date_addr, date_num, date_buf);
+}
 
+void E300::ProHexFile()
+{
+	char date[512];
+	QList<UINT8> datebuf;
+	QString str = {};
+	UINT32 len=0,sum=0,addr=0,index;
+	UINT8 num=0,empty_num=0;
+	QFile file(ui.fileline->text());
+	file.open(QIODevice::ReadOnly | QIODevice::Text);
+	while ((len = file.readLine(date, 512)) != -1)
+	{
+		if (len == 0)
+		{
+			continue;
+		}
+		if (date[4] != '0')
+		{
+			continue;
+		}
+		if (date[0] != 'S')
+		{
+			continue;
+		}
+		if (date[1] == '1')
+		{
+			index = 4;
+		}
+		else if (date[1] == '2')
+		{
+			index = 6;
+		}
+		else if (date[1] == '3')
+		{
+			index = 8;
+		}
+		else
+		{
+			continue;
+		}
+		sum = 0;
+		/*添加地址*/
+		for (int i = 0; i < index; i++)
+		{
+			str.append(date[4+i]);
+		}
+		addr =str.toInt(NULL, 16);
+		if (addr < 0x10000)
+		{
+			str.clear();
+			continue;
+		}
+		if (addr % 0x100 == 0)
+		{
+			date_addr.append(addr);
+			/*添加数量*/
+			str.clear();
+			str.append(date[2]);
+			str.append(date[3]);
+			num = str.toInt(NULL, 16)-1-index/2;
+			date_num.append(num);
+			for (int i = 0; i < (num * 2); i++)
+			{
+				if (date[10 + i] == '0')
+				{
+					sum++;
+				}
+			}
+			if (sum == (num * 2))
+			{
+				empty_num++;
+			}
+			sum = 0;
+			/*添加数据*/
+			for (int i = 0; i < num; i++)
+			{
+				str.clear();
+				str.append(date[10 + i * 2]);
+				str.append(date[11 + i * 2]);
+				datebuf.append(str.toInt(NULL, 16));
+			}
+			for (int i = 0; i < 7; i++)
+			{
+				file.readLine(date, 512);
+				/*添加数量*/
+				str.clear();
+				str.append(date[2]);
+				str.append(date[3]);
+				num = str.toInt(NULL, 16) - 1 - index / 2;
+				date_num.append(num);
+				for (int i = 0; i < (num * 2); i++)
+				{
+					if (date[10 + i] == '0')
+					{
+						sum++;
+					}
+				}
+				if (sum == (num * 2))
+				{
+					empty_num++;
+				}
+				sum = 0;
+				/*添加数据*/
+				for (int i = 0; i < num; i++)
+				{
+					str.clear();
+					str.append(date[10 + i * 2]);
+					str.append(date[11 + i * 2]);
+					datebuf.append(str.toInt(NULL, 16));
+				}
+				str.clear();
+			}
+			if (empty_num != 8)
+			{
+				date_buf.append(datebuf);
+			}
+			else
+			{
+				date_addr.takeLast();
+			}
+			datebuf.clear();
+			empty_num = 0;
+		}
+	}
+}
 
+void E300::testplay(QList<UINT32>temp1, QList<UINT8>temp2, QList<QList<UINT8>>temp3)
+{
+	QString str;
+	//for (int i = 0; i < temp1.count(); i++)
+	//{
+	//	Display(QString::number(temp1[i], 16));
+	//}
+	//for (int i = 0; i < temp2.count(); i++)
+	//{
+	//	Display(QString::number(temp2[i], 16));
+	//}
+	//for (UINT16 i = 0; i < temp3.count(); i++)
+	//{
+	//	for (UINT32 j = 0; j < 256; j++)
+	//	str.append(QString::number(temp3[i][j],16));
+	//}
+	//Display(str);
+}
 
+void E300::on_go_clicked()
+{
+	UINT8 buf[8] = {}, frameID = 0x21, len = 0;
+	QList<UINT8> datebuf;
+	UINT32 addrbuf;
+	double rate, file_total, file_current;
+	if (!unlock())
+	{
+		Display(u8"重启失败");
+		return;
+	}
+	file_total = date_addr.count();
+	while (!date_addr.empty())
+	{
+		file_current = date_addr.count();
+		rate = file_current / file_total;
+		ui.progressBar->setValue((1 - rate) * 100);
+		addrbuf=date_addr.takeFirst();
+		datebuf.append(date_buf.takeFirst());
+		frameID = 0x21;
+		buf[0] = 0x21;//NAD
+		buf[1] = 0x10;//PCI
+		buf[2] = 0x7D;
+		buf[3] = 0x26;//SID
+		buf[4] = addrbuf >> 16;
+		buf[5] = addrbuf >> 8;
+		buf[6] = addrbuf;
+		buf[7] = 0;
+		Write3C(buf);
+		Sleep(10);
+		ReadMsg();
+		while (datebuf.count()>136)
+		{
+			buf[1] = frameID;
+			buf[2] = datebuf.takeFirst();
+			buf[3] = datebuf.takeFirst();
+			buf[4] = datebuf.takeFirst();
+			buf[5] = datebuf.takeFirst();
+			buf[6] = datebuf.takeFirst();
+			buf[7] = datebuf.takeFirst();
+			if (frameID < 0x2F)
+			{
+				frameID++;
+			}
+			else
+			{
+				frameID = 0x20;
+			}
+			Write3C(buf);
+			Sleep(10);
+			ReadMsg();
+		}
 
+		frameID = 0x21;
+		buf[0] = 0x21;//NAD
+		buf[1] = 0x10;//PCI
+		buf[2] = 0x89;
+		buf[3] = 0x26;//SID
+		buf[4] = datebuf.takeFirst();
+		buf[5] = datebuf.takeFirst();
+		buf[6] = datebuf.takeFirst();
+		buf[7] = datebuf.takeFirst();
+		Write3C(buf);
+		Sleep(10);
+		ReadMsg();
+		while (datebuf.count() > 6)
+		{
+			buf[1] = frameID;
+			buf[2] = datebuf.takeFirst();
+			buf[3] = datebuf.takeFirst();
+			buf[4] = datebuf.takeFirst();
+			buf[5] = datebuf.takeFirst();
+			buf[6] = datebuf.takeFirst();
+			buf[7] = datebuf.takeFirst();
+			if (frameID < 0x2F)
+			{
+				frameID++;
+			}
+			else
+			{
+				frameID = 0x20;
+			}
+			Write3C(buf);
+			Sleep(10);
+			ReadMsg();
+		}
+
+		buf[1] = frameID;
+		for (int i = 0; i < 6; i++)
+		{
+			buf[2 + i] = 0;
+		}
+		for (int i = 0; datebuf.count()>0; i++)
+		{
+			buf[2+i]= datebuf.takeFirst();
+		}
+		Write3C(buf);
+		Sleep(10);
+		ReadMsg();
+		Sleep(20);
+	}
+	buf[0] = 0x21;//NAD
+	buf[1] = 0x01;
+	buf[2] = 0x33;//SID
+	Write3C(buf);
+	Sleep(10);
+	ReadMsg();
+	ui.progressBar->setValue(100);
+	ProHexFile();
+}
+
+void E300::on_pushButton_clicked()
+{
+	UINT8 buf[8] = {}, frameID = 0x21, len = 0;
+	UINT8 datebuf[280] = { 0 };
+	UINT16 length=0;
+	len = sizeof(datebuf) / sizeof(datebuf[0]);
+	frameID = 0x21;
+	buf[0] = 0x21;//NAD
+	buf[1] = 0x11;//PCI
+	buf[2] = 0x19;
+	buf[3] = 0x26;//SID
+	buf[4] = datebuf[length++];
+	buf[5] = datebuf[length++];
+	buf[6] = datebuf[length++];
+	buf[7] = datebuf[length++];
+	Write3C(buf);
+	Sleep(10);
+	ReadMsg();
+	len -= 4;
+	while (len > 6)
+	{
+		buf[1] = frameID;
+		buf[2] = datebuf[length++];
+		buf[3] = datebuf[length++];
+		buf[4] = datebuf[length++];
+		buf[5] = datebuf[length++];
+		buf[6] = datebuf[length++];
+		buf[7] = datebuf[length++];
+		if (frameID < 0x2F)
+		{
+			frameID++;
+		}
+		else
+		{
+			frameID = 0x20;
+		}
+		Write3C(buf);
+		Sleep(10);
+		ReadMsg();
+		len -= 6;
+	}
+	buf[1] = frameID;
+	for (int i = 0; i < len; i++)
+	{
+		buf[2 + i] = datebuf[length++];
+	}
+	Write3C(buf);
+	Sleep(10);
+	ReadMsg();
+}
+
+UINT8 E300::unlock()
+{
+	UINT8 buf[8];
+	int i=0;
+	buf[i++] = 0x21;
+	buf[i++] = 0x01;
+	buf[i++] = 0x23;
+	//buf[i++] = 0x21;
+	//buf[i++] = 0x21;
+	//buf[i++] = 0x21;
+	//buf[i++] = 0x21;
+	//buf[i++] = 0x21;
+	Write3C(buf);
+	Sleep(10);
+	ReadMsg(buf);
+	Sleep(500);
+
+	return 1;
+}
 
 
 

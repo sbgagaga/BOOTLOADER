@@ -12,6 +12,7 @@
 #include "string.h"
 
 
+
 typedef TLINError(__stdcall* fpOneParamCli) (HLINCLIENT);
 typedef TLINError(__stdcall* fpTwoParam) (HLINCLIENT, HLINHW);
 typedef TLINError(__stdcall* fpDelStartSchedule) (HLINCLIENT, HLINHW, int);
@@ -90,6 +91,9 @@ public:
 	void Write3C(BYTE* buf);
 	void Write3DHead();
 	void DIDdiagnose();
+	void ProHexFile();
+	void testplay(QList<UINT32>,QList<UINT8>, QList<QList<UINT8>>);
+	UINT8 unlock();
 
 private:
 	Ui::MainWindow ui;
@@ -162,6 +166,10 @@ private:
 	FARPROC GetFunction(LPSTR szName);
 	bool connectflag=0;
 	QList<QString> senddate, sendaddr;
+
+	QList<UINT32> date_addr;
+	QList<UINT8> date_num;
+	QList<QList<UINT8>> date_buf;
 
 	QTimer* E300time;
 	const QString off_led = "min-width: 24px; min-height: 24px;max-width:24px; \
@@ -1113,4 +1121,7 @@ private slots:
 	void on_E300_start_clicked();
 	void on_E300_stop_clicked();
 	void on_timer_timeout();
+	void on_choosefile_clicked();
+	void on_go_clicked(); 
+	void on_pushButton_clicked();
 };
